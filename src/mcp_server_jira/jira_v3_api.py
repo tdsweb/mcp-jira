@@ -54,11 +54,12 @@ class JiraV3APIClient:
         endpoint: str,
         data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None,
+        api_version: str = "3",
     ) -> Dict[str, Any]:
         """
-        Sends an authenticated async HTTP request to a Jira v3 REST API endpoint.
+        Sends an authenticated async HTTP request to a Jira REST API endpoint.
         """
-        url = f"{self.server_url}/rest/api/3{endpoint}"
+        url = f"{self.server_url}/rest/api/{api_version}{endpoint}"
 
         logger.debug(f"Attempting to make request: {method} {url}")
         logger.debug(f"Request params: {params}")
@@ -410,7 +411,7 @@ class JiraV3APIClient:
         properties: Optional[list] = None,
     ) -> Dict[str, Any]:
         """
-        Add a comment to an issue using the v3 REST API.
+        Add a comment to an issue using the v2 REST API.
 
         Args:
             issue_id_or_key: Issue ID or key (required)
@@ -421,7 +422,7 @@ class JiraV3APIClient:
         Returns:
             Dict containing comment details:
             - id: Comment ID
-            - body: Comment body in ADF format
+            - body: Comment body
             - author: Author information
             - created: Creation timestamp
             - updated: Last update timestamp
@@ -436,19 +437,7 @@ class JiraV3APIClient:
         if not comment:
             raise ValueError("comment is required")
 
-        # Build the request payload with ADF format
-        payload = {
-            "body": {
-                "type": "doc",
-                "version": 1,
-                "content": [
-                    {
-                        "type": "paragraph",
-                        "content": [{"type": "text", "text": comment}],
-                    }
-                ],
-            }
-        }
+        payload = {"body": comment}
 
         # Add optional visibility
         if visibility:
@@ -459,8 +448,11 @@ class JiraV3APIClient:
             payload["properties"] = properties
 
         endpoint = f"/issue/{issue_id_or_key}/comment"
-        logger.debug(f"Adding comment to issue {issue_id_or_key} with v3 API endpoint: {endpoint}")
-        response_data = await self._make_v3_api_request("POST", endpoint, data=payload)
+        logger.debug(f"Adding comment to issue {issue_id_or_key} with v2 API endpoint: {endpoint}")
+        response_data = await self._make_v3_api_request(
+            "POST", endpoint, data=payload, api_version="2"
+        )
+
         logger.debug(f"Add comment API response: {json.dumps(response_data, indent=2)}")
         return response_data
 

@@ -1,7 +1,7 @@
 """Test cases for add_comment V3 API client only"""
 
-import asyncio
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock
+
 import pytest
 
 from src.mcp_server_jira.jira_v3_api import JiraV3APIClient
@@ -16,21 +16,7 @@ class TestAddCommentV3API:
         # Mock successful response
         mock_response_data = {
             "id": "10000",
-            "body": {
-                "type": "doc",
-                "version": 1,
-                "content": [
-                    {
-                        "type": "paragraph",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": "This is a test comment"
-                            }
-                        ]
-                    }
-                ]
-            },
+            "body": "This is a test comment",
             "author": {
                 "accountId": "5b10a2844c20165700ede21g",
                 "displayName": "Test User",
@@ -38,7 +24,7 @@ class TestAddCommentV3API:
             },
             "created": "2021-01-17T12:34:00.000+0000",
             "updated": "2021-01-17T12:34:00.000+0000",
-            "self": "https://test.atlassian.net/rest/api/3/issue/10010/comment/10000"
+            "self": "https://test.atlassian.net/rest/api/2/issue/10010/comment/10000"
         }
 
         mock_response = Mock()
@@ -68,15 +54,11 @@ class TestAddCommentV3API:
         # Verify the request was made correctly
         call_args = mock_client.request.call_args
         assert call_args[1]["method"] == "POST"
-        assert "https://test.atlassian.net/rest/api/3/issue/PROJ-123/comment" in call_args[1]["url"]
+        assert "https://test.atlassian.net/rest/api/2/issue/PROJ-123/comment" in call_args[1]["url"]
         
         # Verify the request payload
         payload = call_args[1]["json"]
-        assert payload["body"]["type"] == "doc"
-        assert payload["body"]["version"] == 1
-        assert len(payload["body"]["content"]) == 1
-        assert payload["body"]["content"][0]["type"] == "paragraph"
-        assert payload["body"]["content"][0]["content"][0]["text"] == "This is a test comment"
+        assert payload["body"] == "This is a test comment"
 
         # Verify the response
         assert result == mock_response_data
@@ -87,21 +69,7 @@ class TestAddCommentV3API:
         # Mock successful response
         mock_response_data = {
             "id": "10001",
-            "body": {
-                "type": "doc",
-                "version": 1,
-                "content": [
-                    {
-                        "type": "paragraph", 
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": "Internal comment"
-                            }
-                        ]
-                    }
-                ]
-            },
+            "body": "Internal comment",
             "visibility": {
                 "type": "role",
                 "value": "Administrators"
@@ -181,21 +149,7 @@ class TestAddCommentV3API:
         # Mock successful response
         mock_response_data = {
             "id": "10002",
-            "body": {
-                "type": "doc",
-                "version": 1,
-                "content": [
-                    {
-                        "type": "paragraph",
-                        "content": [
-                            {
-                                "type": "text",
-                                "text": "Comment with properties"
-                            }
-                        ]
-                    }
-                ]
-            },
+            "body": "Comment with properties",
             "properties": [
                 {
                     "key": "custom-property",
