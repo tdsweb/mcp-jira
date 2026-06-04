@@ -584,11 +584,16 @@ class JiraV3APIClient:
         # Remove None values
         params = {k: v for k, v in params.items() if v is not None}
 
-        endpoint = "/search/jql"
-        logger.debug(f"Searching issues with v3 API endpoint: {endpoint}")
+        endpoint = "/search"
+        logger.debug(f"Searching issues with v2 API endpoint: {endpoint}")
         logger.debug(f"Search params: {params}")
-        
-        response_data = await self._make_v3_api_request("GET", endpoint, params=params)
+
+        response_data = await self._make_v3_api_request(
+            "GET", endpoint, params=params, api_version="2"
+        )
+        issue_count = len(response_data.get("issues", []))
+        total = response_data.get("total", 0)
+        response_data["isLast"] = start_at + issue_count >= total
         logger.debug(f"Search issues API response: {json.dumps(response_data, indent=2)}")
         return response_data
 

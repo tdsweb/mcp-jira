@@ -105,6 +105,20 @@ class JiraTransitionResult(BaseModel):
     name: str
 
 
+def _json_safe_value(value: Any) -> Any:
+    if isinstance(value, (str, int, float, bool)) or value is None:
+        return value
+    if isinstance(value, list):
+        return [_json_safe_value(item) for item in value]
+    if isinstance(value, dict):
+        return {str(key): _json_safe_value(item) for key, item in value.items()}
+    if hasattr(value, "name"):
+        return value.name
+    if hasattr(value, "value"):
+        return value.value
+    return str(value)
+
+
 class JiraServer:
     def __init__(
         self,
@@ -374,7 +388,7 @@ class JiraServer:
                                 if hasattr(value[0], "name"):
                                     fields[field_name] = [item.name for item in value]
                                 else:
-                                    fields[field_name] = value
+                                    fields[field_name] = _json_safe_value(value)
                         else:
                             fields[field_name] = str(value)
 

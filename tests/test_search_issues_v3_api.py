@@ -12,8 +12,9 @@ class TestSearchIssuesV3API:
     """Test suite for search_issues V3 API client"""
 
     @pytest.mark.asyncio
-    async def test_v3_api_search_issues_success(self):
-        """Test successful search issues request with V3 API"""
+    async def test_v2_api_search_issues_success(self):
+        """Test successful search issues request with Jira Server API v2"""
+        # Проверяем, что поиск работает через API v2, который есть в Jira Server.
         # Mock successful search response
         mock_response = Mock()
         mock_response.status_code = 200
@@ -47,7 +48,6 @@ class TestSearchIssuesV3API:
             "startAt": 0,
             "maxResults": 50,
             "total": 2,
-            "isLast": True
         }
         mock_response.text = ""
         mock_response.raise_for_status.return_value = None
@@ -75,18 +75,20 @@ class TestSearchIssuesV3API:
         call_args = mock_client.request.call_args
         
         assert call_args[1]["method"] == "GET"
-        assert call_args[1]["url"] == "https://test.atlassian.net/rest/api/3/search/jql"
+        assert call_args[1]["url"] == "https://test.atlassian.net/rest/api/2/search"
         assert call_args[1]["params"]["jql"] == "project = PROJ"
         assert call_args[1]["params"]["maxResults"] == 10
 
         # Verify response
         assert result["total"] == 2
+        assert result["isLast"] is True
         assert len(result["issues"]) == 2
         assert result["issues"][0]["key"] == "PROJ-123"
 
     @pytest.mark.asyncio
-    async def test_v3_api_search_issues_with_parameters(self):
+    async def test_v2_api_search_issues_with_parameters(self):
         """Test search issues with optional parameters"""
+        # Проверяем, что параметры поиска передаются в API v2 без потери.
         # Mock successful search response
         mock_response = Mock()
         mock_response.status_code = 200
@@ -126,7 +128,7 @@ class TestSearchIssuesV3API:
         call_args = mock_client.request.call_args
         
         assert call_args[1]["method"] == "GET"
-        assert call_args[1]["url"] == "https://test.atlassian.net/rest/api/3/search/jql"
+        assert call_args[1]["url"] == "https://test.atlassian.net/rest/api/2/search"
         params = call_args[1]["params"]
         assert params["jql"] == "project = PROJ AND status = Open"
         assert params["startAt"] == 10
@@ -157,7 +159,7 @@ class TestSearchIssuesV3API:
         
         from httpx import HTTPStatusError, Request, Response
         mock_request = Mock(spec=Request)
-        mock_request.url = "https://test.atlassian.net/rest/api/3/search/jql"
+        mock_request.url = "https://test.atlassian.net/rest/api/2/search"
         
         # Mock httpx client
         mock_client = AsyncMock()

@@ -2,6 +2,8 @@
 Tests for the main server functionality.
 """
 
+import json
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -257,3 +259,36 @@ class TestJiraServer:
         assert client.username == "testuser"
         assert client.password == "testpass"
         assert client.token is None
+
+    def test_get_jira_issue_serializes_custom_list_fields(self):
+        """Test get_jira_issue returns JSON-safe values for custom list fields"""
+        class JiraObject:
+            def __str__(self):
+                return "linked issue"
+
+        issue = SimpleNamespace(
+            key="TEST-1",
+            fields=SimpleNamespace(
+                summary="Test issue",
+                description="Description",
+                status=SimpleNamespace(name="Open"),
+                assignee=None,
+                reporter=None,
+                created="2026-01-01T00:00:00.000+0000",
+                updated="2026-01-02T00:00:00.000+0000",
+                customfield_100=[JiraObject()],
+            ),
+        )
+
+        server = JiraServer(
+            server_url="https://test.atlassian.net",
+            username="testuser",
+            token="testtoken",
+        )
+        server.client = Mock()
+        server.client.issue.return_value = issue
+
+        result = server.get_jira_issue("TEST-1")
+
+        assert result.fields["customfield_100"] == ["linked issue"]
+        json.dumps(result.model_dump())
