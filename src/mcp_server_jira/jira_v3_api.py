@@ -5,6 +5,7 @@ This module provides direct HTTP client functionality for Jira's v3 REST API,
 offering enhanced functionality and security for operations that require the latest API features.
 """
 
+import base64
 import json
 import logging
 from typing import Any, Dict, Optional
@@ -455,6 +456,31 @@ class JiraV3APIClient:
 
         logger.debug(f"Add comment API response: {json.dumps(response_data, indent=2)}")
         return response_data
+
+    async def download_attachment(self, attachment_id: str) -> Dict[str, Any]:
+        """
+        Download a Jira attachment through an authenticated Jira Server API call.
+        """
+        if not attachment_id:
+            raise ValueError("attachment_id is required")
+
+        metadata = await self._make_v3_api_request(
+            "GET", f"/attachment/{attachment_id}", api_version="2"
+        )
+        content_url = metadata.get("content")
+        if not content_url:
+            raise ValueError(f"Attachment {attachment_id} has no content URL")
+
+        response = await self.client.get(content_url)
+        response.raise_for_status()
+
+        return {
+            "id": str(metadata.get("id", attachment_id)),
+            "filename": metadata.get("filename"),
+            "mimeType": metadata.get("mimeType") or "application/octet-stream",
+            "size": metadata.get("size"),
+            "data": base64.b64encode(response.content).decode("ascii"),
+        }
 
     async def create_issue(
         self,

@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from src.mcp_server_jira.jira_v3_api import JiraV3APIClient
 from src.mcp_server_jira.server import JiraProjectResult, JiraServer
 
 
@@ -292,3 +293,92 @@ class TestJiraServer:
 
         assert result.fields["customfield_100"] == ["linked issue"]
         json.dumps(result.model_dump())
+
+    def test_get_jira_issue_includes_attachment_metadata(self):
+        """Test get_jira_issue returns Jira attachment metadata"""
+        attachment = SimpleNamespace(
+            id="158010",
+            filename="screenshot-2.png",
+            mimeType="image/png",
+            size=289881,
+            content="http://jira.local/secure/attachment/158010/screenshot-2.png",
+            thumbnail="http://jira.local/secure/thumbnail/158010/_thumb_158010.png",
+        )
+        issue = SimpleNamespace(
+            key="TEST-1",
+            fields=SimpleNamespace(
+                summary="Test issue",
+                description="Description",
+                status=SimpleNamespace(name="Open"),
+                assignee=None,
+                reporter=None,
+                created="2026-01-01T00:00:00.000+0000",
+                updated="2026-01-02T00:00:00.000+0000",
+                attachment=[attachment],
+            ),
+        )
+
+        server = JiraServer(
+            server_url="https://test.atlassian.net",
+            username="testuser",
+            token="testtoken",
+        )
+        server.client = Mock()
+        server.client.issue.return_value = issue
+
+        result = server.get_jira_issue("TEST-1")
+
+        assert result.attachments == [
+            {
+                "id": "158010",
+                "filename": "screenshot-2.png",
+                "mimeType": "image/png",
+                "size": 289881,
+                "content": "http://jira.local/secure/attachment/158010/screenshot-2.png",
+                "thumbnail": "http://jira.local/secure/thumbnail/158010/_thumb_158010.png",
+            }
+        ]
+
+    @pytest.mark.asyncio
+    async def test_download_jira_attachment_returns_base64_image(self):
+        """Test attachment download returns metadata and base64 data"""
+        metadata_response = Mock()
+        metadata_response.status_code = 200
+        metadata_response.json.return_value = {
+            "id": "158010",
+            "filename": "screenshot-2.png",
+            "mimeType": "image/png",
+            "size": 4,
+            "content": "https://test.atlassian.net/secure/attachment/158010/screenshot-2.png",
+        }
+        metadata_response.text = ""
+        metadata_response.raise_for_status.return_value = None
+
+        content_response = Mock()
+        content_response.status_code = 200
+        content_response.content = b"\x89PNG"
+        content_response.raise_for_status.return_value = None
+
+        mock_client = AsyncMock()
+        mock_client.request.return_value = metadata_response
+        mock_client.get.return_value = content_response
+
+        client = JiraV3APIClient(
+            server_url="https://test.atlassian.net",
+            username="testuser",
+            token="testtoken",
+        )
+        client.client = mock_client
+
+        result = await client.download_attachment("158010")
+
+        assert result == {
+            "id": "158010",
+            "filename": "screenshot-2.png",
+            "mimeType": "image/png",
+            "size": 4,
+            "data": "iVBORw==",
+        }
+        mock_client.get.assert_called_once_with(
+            "https://test.atlassian.net/secure/attachment/158010/screenshot-2.png"
+        )

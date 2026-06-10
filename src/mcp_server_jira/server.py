@@ -58,6 +58,7 @@ except ImportError:
 class JiraTools(str, Enum):
     GET_PROJECTS = "get_jira_projects"
     GET_ISSUE = "get_jira_issue"
+    GET_ATTACHMENT = "get_jira_attachment"
     SEARCH_ISSUES = "search_jira_issues"
     CREATE_ISSUE = "create_jira_issue"
     CREATE_ISSUES = "create_jira_issues"
@@ -117,6 +118,17 @@ def _json_safe_value(value: Any) -> Any:
     if hasattr(value, "value"):
         return value.value
     return str(value)
+
+
+def _attachment_dict(attachment: Any) -> Dict[str, Any]:
+    return {
+        "id": str(getattr(attachment, "id", "")),
+        "filename": getattr(attachment, "filename", None),
+        "mimeType": getattr(attachment, "mimeType", None),
+        "size": getattr(attachment, "size", None),
+        "content": getattr(attachment, "content", None),
+        "thumbnail": getattr(attachment, "thumbnail", None),
+    }
 
 
 class JiraServer:
@@ -362,6 +374,13 @@ class JiraServer:
                         }
                     )
 
+            attachments = []
+            if hasattr(issue.fields, "attachment") and issue.fields.attachment:
+                attachments = [
+                    _attachment_dict(attachment)
+                    for attachment in issue.fields.attachment
+                ]
+
             # Create a fields dictionary with custom fields
             fields = {}
             for field_name in dir(issue.fields):
@@ -419,6 +438,7 @@ class JiraServer:
                 ),
                 fields=fields,
                 comments=comments,
+                attachments=attachments,
             )
         except Exception as e:
             print(f"Failed to get issue {issue_key}: {type(e).__name__}: {str(e)}")
@@ -485,6 +505,23 @@ class JiraServer:
             logger.error(error_msg, exc_info=True)
             print(error_msg)
             raise ValueError(error_msg)
+
+    async def get_jira_attachment(self, attachment_id: str) -> ImageContent | Dict[str, Any]:
+        """Download Jira attachment by ID."""
+        attachment = await self._get_v3_api_client().download_attachment(attachment_id)
+        mime_type = attachment["mimeType"]
+        if mime_type.startswith("image/"):
+            return ImageContent(
+                type="image",
+                data=attachment["data"],
+                mimeType=mime_type,
+                _meta={
+                    "id": attachment["id"],
+                    "filename": attachment["filename"],
+                    "size": attachment["size"],
+                },
+            )
+        return attachment
 
     async def create_jira_issue(
         self,
@@ -1211,6 +1248,20 @@ async def serve(
                 },
             ),
             Tool(
+                name=JiraTools.GET_ATTACHMENT.value,
+                description="Download a Jira attachment by ID. Images are returned as MCP image content.",
+                inputSchema={
+                    "type": "object",
+                    "properties": {
+                        "attachment_id": {
+                            "type": "string",
+                            "description": "The Jira attachment ID",
+                        }
+                    },
+                    "required": ["attachment_id"],
+                },
+            ),
+            Tool(
                 name=JiraTools.SEARCH_ISSUES.value,
                 description="Search for Jira issues using JQL (Jira Query Language)",
                 inputSchema={
@@ -1437,6 +1488,14 @@ async def serve(
                     result = jira_server.get_jira_issue(issue_key)
                     logger.info("Synchronous tool get_jira_issue completed.")
 
+                case JiraTools.GET_ATTACHMENT.value:
+                    logger.info("Calling async tool get_jira_attachment...")
+                    attachment_id = arguments.get("attachment_id")
+                    if not attachment_id:
+                        raise ValueError("Missing required argument: attachment_id")
+                    result = await jira_server.get_jira_attachment(attachment_id)
+                    logger.info("Async tool get_jira_attachment completed.")
+
                 case JiraTools.SEARCH_ISSUES.value:
                     logger.info("Calling async tool search_jira_issues...")
                     jql = arguments.get("jql")
@@ -1545,6 +1604,9 @@ async def serve(
                     raise ValueError(f"Unknown tool: {name}")
 
             logger.debug("Serializing result to JSON...")
+
+            if isinstance(result, (TextContent, ImageContent, EmbeddedResource)):
+                return [result]
 
             # Handle serialization properly for different result types
             if isinstance(result, list):
